@@ -1,0 +1,71 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Set default facts
+  set_fact:
+    all_slots: []
+
+- name: Get current index in play_hosts
+  set_fact:
+    current_index: "{{ idx }}"
+  when: item == inventory_hostname
+  loop: "{{ play_hosts }}"
+  loop_control:
+    index_var: idx
+
+- name: Get all slots for all hosts
+  set_fact:
+    all_slots: "{{ all_slots | default([]) + hostvars[play_hosts[item | int]]['slots'] }}"
+  with_sequence: start=0 end={{ current_index }}
+  when:
+    - inventory_hostname == play_hosts[play_hosts | length - 1 | int]
+    - hostvars[play_hosts[item | int]]['slots'] is defined
+
+- name: Print all_slots
+  debug:
+    var: all_slots
+  when: debug
+
+# find best slot
+- name: Init best match
+  set_fact:
+    best_slot: "{{ all_slots[0] }}"
+  when:
+    - inventory_hostname == play_hosts[play_hosts | length - 1 | int]
+    - all_slots != []
+
+- name: Find best slot
+  set_fact:
+    best_slot: "{{ all_slots[idx] }}"
+  loop: "{{ all_slots }}"
+  loop_control:
+    index_var: idx
+  when:
+    - inventory_hostname == play_hosts[play_hosts | length - 1 | int]
+    - best_slot is defined
+    - best_slot.grade | int < all_slots[idx].grade | int
+
+- name: Print best_slot
+  debug:
+    var: best_slot
+  when:
+    - inventory_hostname == play_hosts[play_hosts | length - 1 | int]
+    - best_slot is defined
+
+# Create host group with best matching buffer's host
+- name: Create target group
+  add_host:
+    name: "{{ hostvars[play_hosts[play_hosts | length - 1 | int]].best_slot.host }}"
+    groups: ExCAT_host
+    best_slot: "{{ hostvars[play_hosts[play_hosts | length - 1 | int]].best_slot }}"
+  when:
+    - inventory_hostname == play_hosts[0]
+    - hostvars[play_hosts[play_hosts | length - 1 | int]].best_slot is defined
+
+- name: Print no matching buffers
+  fail:
+    msg: "No slot available on any of the hosts."
+  when:
+    - inventory_hostname == play_hosts[0]
+    - groups['ExCAT_host'] | default([]) == []

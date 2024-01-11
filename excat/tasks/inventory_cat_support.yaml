@@ -1,0 +1,51 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Set default values for custom facts
+  set_fact:
+    cat_l3_na: false
+
+- name: Check if non-architectural CAT L3 support is available
+  stat:
+    path: /sys/fs/resctrl/info/L3
+  register: stat_info_l3
+  when:
+    - not cat_l3
+
+- name: Set cat_l3 fact if non-architectural support
+  set_fact:
+    cat_l3: true
+    cat_l3_na: true
+  when:
+    - not cat_l3
+    - stat_info_l3.stat.exists
+
+- name: Print cat_l3 if changed
+  debug:
+    msg: "Non-architectural CAT L3 support detected: cat_l3 = {{ cat_l3 }}."
+  when: cat_l3_na
+
+- name: Check if inventory supports CAT
+  set_fact:
+    inv_cat_support: "{{ true if ((inv_cat_support | default(false)) or cat_support) else false }}"
+    inv_cat_req_support: "{{ true if ((inv_cat_req_support | default(false)) or cat_req_support) else false }}"
+  vars:
+    cat_support: "{{ true if (hostvars[play_hosts[item | int]]['cat_l2'] or hostvars[play_hosts[item | int]]['cat_l3']) else false }}"
+    cat_req_support: "{{ true if hostvars[play_hosts[item | int]]['cat_l' + (cache_level_request | string) ] else false }}"
+  with_sequence: start=0 end={{ hostvars | length -1 | int }}
+  when: inventory_hostname == play_hosts[play_hosts | length - 1 | int]
+
+- name: Stop if no host supports CAT
+  assert:
+    that:
+      - inv_cat_support == true
+    fail_msg: "No host in the inventory supports CAT"
+  when: inventory_hostname == play_hosts[play_hosts | length - 1 | int]
+
+- name: Stop if no host supports the requested cache level
+  assert:
+    that:
+      - inv_cat_req_support == true
+    fail_msg: "No host in the inventory supports CAT for the requested cache level"
+  when: inventory_hostname == play_hosts[play_hosts | length - 1 | int]

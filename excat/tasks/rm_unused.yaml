@@ -1,0 +1,194 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# find unused buffers and remove them
+- name: Set default value for facts
+  set_fact:
+    rm_buffers: []
+
+- name: Set default value for facts
+  set_fact:
+    unused_buffers: []
+    buffer_merged: true
+    cos0_schemata: "{{ cos0_l2schemata[0] }}"
+    accumulated_bitmask: "{{ cos0_l2schemata[0] }}"
+    level: 2
+  when: cat_l2
+
+- name: Get all unused buffer to be removed later
+  set_fact:
+    rm_buffers: "{{ rm_buffers | default([]) + [item.0.path] }}"
+  with_subelements:
+    - "{{ buffers }}"
+    - properties
+  when:
+    - buffers | length > 0
+    - item.1.pids == []
+
+- name: Find unused buffer
+  set_fact:
+    unused_buffers: "{{ unused_buffers | default([]) + [{'path': item.0.path, 'schemata': item.1.l2schemata[0]}] }}"
+  with_subelements:
+    - "{{ buffers }}"
+    - properties
+  when:
+    - cat_l2
+    - buffers | length > 0
+    - item.1.pids == []
+
+- name: Print unused_buffers
+  debug:
+    var: unused_buffers
+  when:
+    - cat_l2
+    - unused_buffers
+    - debug
+
+- name: Accumulate bitmasks of all buffers and cos0
+  set_fact:
+    accumulated_bitmask: "{{ accumulated_bitmask | int(base=16) | dec_or(item.1.l2schemata[0] | int(base=16)) | dec2hex }}"
+  with_subelements:
+    - "{{ buffers }}"
+    - properties
+  when:
+    - cat_l2
+    - buffers | length > 0
+
+- name: Print accumulated_bitmask
+  debug:
+    var: accumulated_bitmask
+  when:
+    - cat_l2
+    - debug
+
+- name: Get unused space
+  set_fact:
+    unused_slots: "{{ accumulated_bitmask | int(base=16) | get_unused }}"
+  when:
+    - cat_l2
+
+- name: Print unused space
+  debug:
+    var: unused_slots
+  when:
+    - cat_l2
+    - unused_slots is defined
+    - debug
+
+- name: Add unused space to unused buffers
+  set_fact:
+    unused_buffers: "{{ unused_buffers | default([]) + [{'path': '', 'schemata': item[2]}] }}"
+  loop: "{{ unused_slots }}"
+  when:
+    - cat_l2
+
+- name: Merge cos0 with unused buffers' bitmasks (L2)
+  include_tasks: merge_default_with_unused.yaml
+  loop: "{{ unused_buffers }}"
+  when:
+    - cat_l2
+    - buffer_merged
+    - unused_buffers
+
+- name: Adapt cos0_schemata with new value
+  set_fact:
+    cos0_l2schemata: "{{ cos0_schemata }}"
+  when: cat_l2
+
+- name: Print cos0_schemata
+  debug:
+    var: cos0_l2schemata
+  when: debug
+
+- name: Set default value for facts
+  set_fact:
+    unused_buffers: []
+    buffer_merged: true
+    cos0_schemata: "{{ cos0_l3schemata[0] }}"
+    accumulated_bitmask: "{{ cos0_l3schemata[0] }}"
+    level: 3
+  when: cat_l3
+
+- name: Find unused buffer
+  set_fact:
+    unused_buffers: "{{ unused_buffers | default([]) + [{'path': item.0.path, 'schemata': item.1.l3schemata[0]}] }}"
+  with_subelements:
+    - "{{ buffers }}"
+    - properties
+  when:
+    - cat_l3
+    - buffers | length > 0
+    - item.1.pids == []
+
+- name: Print unused_buffers
+  debug:
+    var: unused_buffers
+  when:
+    - cat_l3
+    - unused_buffers
+    - debug
+
+- name: Accumulate bitmasks of all buffers and cos0
+  set_fact:
+    accumulated_bitmask: "{{ accumulated_bitmask | int(base=16) | dec_or(item.1.l3schemata[0] | int(base=16)) | dec2hex }}"
+  with_subelements:
+    - "{{ buffers }}"
+    - properties
+  when:
+    - cat_l3
+    - buffers | length > 0
+
+- name: Print accumulated_bitmask
+  debug:
+    var: accumulated_bitmask
+  when:
+    - cat_l3
+    - debug
+
+- name: Get unused space
+  set_fact:
+    unused_slots: "{{ accumulated_bitmask | int(base=16) | get_unused }}"
+  when:
+    - cat_l3
+
+- name: Print unused space
+  debug:
+    var: unused_slots
+  when:
+    - cat_l3
+    - unused_slots is defined
+    - debug
+
+- name: Add unused space to unused buffers
+  set_fact:
+    unused_buffers: "{{ unused_buffers | default([]) + [{'path': '', 'schemata': item[2]}] }}"
+  loop: "{{ unused_slots }}"
+  when:
+    - cat_l3
+
+- name: Merge cos0 with unused buffers' bitmasks (L3)
+  include_tasks: merge_default_with_unused.yaml
+  loop: "{{ unused_buffers }}"
+  when:
+    - cat_l3
+    - buffer_merged
+    - unused_buffers
+
+- name: Adapt cos0_schemata with new value
+  set_fact:
+    cos0_l3schemata: "{{ cos0_schemata }}"
+  when: cat_l3
+
+- name: Print cos0_schemata
+  debug:
+    var: cos0_l3schemata
+  when: debug
+
+- name: Remove unused buffer
+  command: rmdir {{ item }} # noqa: deprecated-command-syntax
+  loop: "{{ rm_buffers }}"
+  become: true
+  register: rmdir_out
+  changed_when: rmdir_out.rc == 0
+  when: rm_buffers | length > 0

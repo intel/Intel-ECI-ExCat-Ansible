@@ -1,0 +1,9 @@
+---
+cache_level_request: 2
+buffer_size_request: 128000
+path2workload: /path/to/workload/myWorkload
+containerized: false
+podman_run_flags: ""
+min_defaultclass_size: 50
+path2logfile: ""
+debug: false

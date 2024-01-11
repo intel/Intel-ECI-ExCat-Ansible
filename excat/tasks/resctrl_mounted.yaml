@@ -1,0 +1,25 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Get /proc/mounts
+  fetch:
+    src: /proc/mounts
+    dest: /tmp/{{ inventory_hostname }}/
+    flat: true
+    validate_checksum: false
+  when: cat_l2 or cat_l3
+
+- name: Set resctrl_is_mounted fact
+  vars:
+    mount_grep_resctrl: "{{ lookup('file', '/tmp/{{ inventory_hostname }}/mounts') | regex_search('resctrl') }}"
+  set_fact:
+    resctrl_is_mounted: "{{ mount_grep_resctrl != '' }}"
+  when:
+    - cat_l2 or cat_l3
+    - mount_grep_resctrl | length > 0
+
+- name: Print resctrl_is_mounted fact
+  debug:
+    var: resctrl_is_mounted
+  when: debug

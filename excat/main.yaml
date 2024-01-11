@@ -1,0 +1,56 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# This playbook starts a workload using CAT.
+- name: Get host for deployment
+  hosts: ExCAT_hosts
+  any_errors_fatal: true
+  tasks:
+    - name: Validate input
+      include_tasks: tasks/validate_input.yaml
+
+    - name: Check resctrl support
+      include_tasks: tasks/cat_support.yaml
+
+    - name: Mount resctrl
+      ansible.posix.mount:
+        src: resctrl
+        fstype: resctrl
+        path: /sys/fs/resctrl
+        state: mounted
+      become: true
+      when:
+        - not resctrl_is_mounted
+        - cat_l2 or cat_l3
+
+    - name: Check CAT support for inventory
+      include_tasks: tasks/inventory_cat_support.yaml
+
+    - name: Set resctrl_is_mounted fact
+      include_tasks: tasks/resctrl_mounted.yaml
+      when:
+        - not resctrl_is_mounted
+        - cat_l2 or cat_l3
+
+    - name: Get configured resctrl buffers
+      include_tasks: tasks/get_buffers.yaml
+      when: cat_l2 or cat_l3
+
+    - name: Remove unused buffers
+      include_tasks: tasks/rm_unused.yaml
+      when: cat_l2 or cat_l3
+
+    - name: Get possible slots
+      include_tasks: tasks/get_slots.yaml
+      when: (cache_level_request == 2 and cat_l2) or (cache_level_request == 3 and cat_l3)
+
+    - name: Get best slot
+      include_tasks: tasks/get_best_slot.yaml
+
+#  copy workload to chosen host, run it and assign PID to matching cache buffer
+- name: Deployment on chosen host
+  hosts: 'ExCAT_host'
+  tasks:
+    - name: Deployment
+      include_tasks: tasks/deployment.yaml

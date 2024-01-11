@@ -1,0 +1,17 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# This playbook copies the public key of a key-pair to remote hosts.
+# You can generate the public key-pair before with
+# `ssh-keygen -b 2048 -t rsa -N "" -f ~/.ssh/id_rsa`
+
+- name: Copy keys
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Copy public key to remote node
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user }}"
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"

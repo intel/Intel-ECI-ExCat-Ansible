@@ -1,0 +1,15 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# This is an example for a parent playbook that includes the ExCAT feature
+- name: Example play
+  hosts: all
+  tasks:
+    - name: Example task
+      debug:
+        msg: "This tasks represents the users parent playbook and it's tasks"
+
+# import the ExCAT feature
+- name: Import ExCAT
+  import_playbook: ../excat/main.yaml

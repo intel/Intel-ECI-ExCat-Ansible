@@ -1,0 +1,3 @@
+---
+ansible_user: "{{ credentials[inventory_hostname].user }}"
+ansible_become_password: "{{ credentials[inventory_hostname].password }}"

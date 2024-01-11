@@ -1,0 +1,192 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Set initial facts
+  set_fact:
+    unused_slots: []
+    used_buffers: []
+
+- name: Fetch cbm_mask
+  fetch:
+    src: "/sys/fs/resctrl/info/L{{ cache_level_request }}/cbm_mask"
+    dest: "/tmp/{{ inventory_hostname }}/cbm_mask"
+    flat: true
+    validate_checksum: false
+
+- name: Get max bitmask
+  set_fact:
+    cbm_mask: "{{ lookup('file', '/tmp/' ~ inventory_hostname ~ '/cbm_mask') | int(base=16) }}"
+
+- name: Print cbm_mask
+  debug:
+    var: cbm_mask
+  when: debug
+
+- name: Fetch min_cbm_bits
+  fetch:
+    src: "/sys/fs/resctrl/info/L{{ cache_level_request }}/min_cbm_bits"
+    dest: "/tmp/{{ inventory_hostname }}/min_cbm_bits"
+    flat: true
+    validate_checksum: false
+
+- name: Get bit resolution
+  set_fact:
+    min_cbm_bits: "{{ lookup('file', '/tmp/' ~ inventory_hostname ~ '/min_cbm_bits') | int(base=16) }}"
+
+- name: Print min_cbm_bits
+  debug:
+    var: min_cbm_bits
+  when: debug
+
+- name: Get cache size
+  command: getconf LEVEL{{ cache_level_request }}_CACHE_SIZE
+  register: getconf_output
+  changed_when: getconf_output.rc != 0
+
+- name: Debug
+  debug:
+    var: getconf_output
+
+- name: Get cache size
+  set_fact:
+    cache_size: "{{ getconf_output.stdout | int }}"
+
+- name: Print cache_size
+  debug:
+    var: cache_size
+  when: debug
+
+- name: Compute required buffer size
+  set_fact:
+    buffer_size_request_resolved: "{{ bitmask_resolution | int * cache_ways | int }}"
+    buffer_request_cache_ways: "{{ cache_ways | int }}"
+    bitmask_resolution: "{{ bitmask_resolution }}"
+  vars:
+    bitmask_resolution: "{{ cache_size | int / ((cbm_mask | int + 1) | log(base=2)) }}"
+    cache_ways: "{{ [min_cbm_bits | int, (buffer_size_request | float / bitmask_resolution | float) | round(method='ceil') | int] | max }}"
+  when:
+    - cache_size | int > 0
+    - min_cbm_bits | int > 0
+    - cbm_mask | int > 0
+
+- name: Print computed buffer size
+  debug:
+    msg:
+      - "bitmask_resolution: {{ bitmask_resolution }}"
+      - "buffer_request_cache_ways: {{ buffer_request_cache_ways }}"
+      - "buffer_size_request_resolved: {{ buffer_size_request_resolved }}"
+  when: debug
+
+- name: Compute min cos0 size
+  set_fact:
+    min_cos0_size_resolved: "{{ bitmask_resolution | int * cache_ways | int }}"
+    min_cos0_cache_ways: "{{ cache_ways | int }}"
+  vars:
+    cache_ways: "{{ [min_cbm_bits | int, ((cache_size | float * min_defaultclass_size | float / 100) / bitmask_resolution | float)
+                 | round(method='ceil') | int] | max }}"
+  when:
+    - cache_size | int > 0
+    - min_cbm_bits | int > 0
+    - bitmask_resolution | int > 0
+
+- name: Print computed min cos0 size
+  debug:
+    msg:
+      - "min_cos0_cache_ways: {{ min_cos0_cache_ways }}"
+      - "min_cos0_cache_ways_mask_hex: {{ min_cos0_cache_ways | int | cacheways2bitmask | int(base=2) | dec2hex }}"
+      - "min_cos0_size_resolved: {{ min_cos0_size_resolved }}"
+  when: debug
+
+- name: Get relevant cos0 schemata
+  set_fact:
+    cos0_schemata: "{{ cos0_l2schemata if cache_level_request == 2 else cos0_l3schemata }}"
+    accumulated_bitmask: "{{ cos0_l2schemata if cache_level_request == 2 else cos0_l3schemata }}"
+
+- name: Print cos0 details
+  debug:
+    msg:
+      - "cos0_schemata: {{ cos0_schemata }}"
+      - "cos0cacheways: {{ cos0_schemata | hex2bin | bitmask2cacheways }}"
+      - "min_cos0_cache_ways: {{ min_cos0_cache_ways | int }}"
+      - "buffer_request_cache_ways: {{ buffer_request_cache_ways }}"
+      - "enoughSpaceInCos0: {{ cos0_schemata | hex2bin | bitmask2cacheways - min_cos0_cache_ways | int - buffer_request_cache_ways | int >= 0 }}"
+  when: debug
+
+- name: Add slot in cos0 if enough space left
+  set_fact:
+    slots: "{{ slots | default([]) + [{'host': inventory_hostname, 'bitmask': bitmask_hex, 'cos0used': true, 'grade': withincos0}] }}"
+  vars:
+    bitmask_hex: "{{ buffer_request_cache_ways | int | cacheways2bitmask | binshiftleft(cos0_schemata | hex2bin | getlowestone) | int(base=2) | dec2hex }}"
+  when: (cos0_schemata | hex2bin | bitmask2cacheways - min_cos0_cache_ways | int - buffer_request_cache_ways | int) >= 0
+
+- name: Find used buffer
+  set_fact:
+    used_buffers: "{{ used_buffers | default([]) +
+                  [{'path': item.0.path, 'schemata': (item.1.l2schemata[0] if cache_level_request ==2 else item.1.l3schemata[0])}] }}"
+  with_subelements:
+    - "{{ buffers }}"
+    - properties
+  when:
+    - buffers | length > 0
+    - item.1.pids != []
+
+- name: Print used_buffers
+  debug:
+    var: used_buffers
+  when:
+    - used_buffers is defined
+    - debug
+
+- name: Accumulate bitmasks of all used buffers and cos0
+  set_fact:
+    accumulated_bitmask: "{{ accumulated_bitmask | int(base=16) | dec_or(item.schemata | int(base=16)) | dec2hex }}"
+  when:
+    used_buffers | length > 0
+  loop: "{{ used_buffers }}"
+
+- name: Print accumulated_bitmask
+  debug:
+    var: accumulated_bitmask
+  when:
+    - debug
+
+- name: Get unused space
+  set_fact:
+    unused_slots: "{{ accumulated_bitmask | int(base=16) | get_unused }}"
+
+- name: Print unused space
+  debug:
+    var: unused_slots
+  when:
+    - unused_slots is defined
+    - debug
+
+- name: Get slots in unused space
+  set_fact:
+    slots: "{{ slots | default([]) +
+           [{'host': inventory_hostname, 'bitmask': bitmask_hex, 'cos0used': false, 'grade': fitting_grade | int + distance_grade | int}] }}"
+    grades: "{{ grades | default([]) + [[fitting_grade, distance_grade]] }}"
+  vars:
+    bitmask_hex: "{{ buffer_request_cache_ways | int | cacheways2bitmask | binshiftleft(item[0]) | int(base=2) | dec2hex }}"
+    distance_grade: "{{ distance_factor * (cos0_schemata | hex2bin | getlowestone - (item[0] + buffer_request_cache_ways | int)) }}"
+    fitting_grade: "{{ ((fitting_factor * (buffer_request_cache_ways | int / item[1])) | round(method='ceil')) }}"
+    cos0lowestone: "{{ cos0_schemata | hex2bin | getlowestone }}"
+  loop: "{{ unused_slots }}"
+  when:
+    - unused_slots is defined
+    - item[1] >= buffer_request_cache_ways | int
+
+- name: Print grades [fitting_grade, distance_grade]
+  debug:
+    var: grades
+  when:
+    - grades is defined
+    - debug
+
+- name: Print slots
+  debug:
+    var: slots
+  when:
+    - slots is defined
+    - debug

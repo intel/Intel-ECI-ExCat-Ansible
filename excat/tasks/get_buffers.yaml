@@ -1,0 +1,118 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Set default values for custom facts
+  set_fact:
+    cat_is_configured: false
+    buffer_paths: []
+    buffers: []
+  when:
+    - cat_is_configured is not defined
+    - buffer_paths is not defined
+    - buffers is not defined
+
+# Get configured CAT buffers
+- name: Find configured buffers
+  find:
+    paths: /sys/fs/resctrl/
+    file_type: directory
+    excludes: [info, mon_data, mon_groups]
+    depth: 1
+  register: find_output
+  when: resctrl_is_mounted
+
+- name: Set buffer_paths fact
+  set_fact:
+    buffer_paths: "{{ buffer_paths | default([]) + [item.path] }}"
+  with_items: "{{ find_output.files }}"
+  when: resctrl_is_mounted
+
+- name: Print buffer_paths fact
+  debug:
+    var: buffer_paths
+  when: debug
+
+- name: Set cat_is_configured fact
+  set_fact:
+    cat_is_configured: "{{ buffer_paths != [] }}"
+  when: buffer_paths | length > 0
+
+- name: Print cat_is_configured
+  debug:
+    var: cat_is_configured
+  when: debug
+
+- name: Get buffers tasks
+  fetch:
+    src: "{{ item }}/tasks"
+    dest: "/tmp/{{ inventory_hostname }}/{{ item | basename }}/tasks"
+    flat: true
+    validate_checksum: false
+  loop: "{{ buffer_paths }}"
+  when: buffer_paths | length > 0
+
+- name: Get buffers schemata
+  fetch:
+    src: "{{ item }}/schemata"
+    dest: "/tmp/{{ inventory_hostname }}/{{ item | basename }}/schemata"
+    flat: true
+    validate_checksum: false
+  loop: "{{ buffer_paths }}"
+  when: buffer_paths | length > 0
+
+- name: Get buffers sizes
+  fetch:
+    src: "{{ item }}/size"
+    dest: "/tmp/{{ inventory_hostname }}/{{ item | basename }}/size"
+    flat: true
+    validate_checksum: false
+  loop: "{{ buffer_paths }}"
+  when: buffer_paths | length > 0
+
+- name: Set buffers fact
+  set_fact:
+    buffers: "{{ buffers | default([]) + [{'path': path, 'properties':
+             [{'pids': pids, 'l2schemata': l2schemata, 'l3schemata': l3schemata}]}] }}"
+  loop: "{{ buffer_paths }}"
+  vars:
+    path: "{{ item }}"
+    pids: "{{ lookup('file', '/tmp/{{ inventory_hostname }}/{{ item | basename }}/tasks').splitlines() | list }}"
+    l2schemata: "{{ lookup('file', '/tmp/{{ inventory_hostname }}/{{ item | basename }}/schemata')
+                | regex_search('^\\s*L2:[0-9]+=([0-9a-f]+)', '\\1', multiline=True) }}"
+    l3schemata: "{{ lookup('file', '/tmp/{{ inventory_hostname }}/{{ item | basename }}/schemata')
+                | regex_search('^\\s*L3:[0-9]+=([0-9a-f]+)', '\\1', multiline=True) }}"
+  when: buffer_paths | length > 0
+
+- name: Print buffers and PIDs
+  debug:
+    var: buffers
+  when:
+    - buffers | length > 0
+    - debug
+
+- name: Get default class' schemata
+  fetch:
+    src: "/sys/fs/resctrl/schemata"
+    dest: "/tmp/{{ inventory_hostname }}/cos0/schemata"
+    flat: true
+    validate_checksum: false
+  when: resctrl_is_mounted
+
+- name: Set cos0_schemata fact
+  set_fact:
+    cos0_l2schemata: "{{ lookup('file', '/tmp/' ~ inventory_hostname ~ '/cos0/schemata')
+                     | regex_search('^\\s*L2:[0-9]+=([0-9a-f]+)', '\\1', multiline=True) }}"
+    cos0_l3schemata: "{{ lookup('file', '/tmp/' ~ inventory_hostname ~ '/cos0/schemata')
+                     | regex_search('^\\s*L3:[0-9]+=([0-9a-f]+)', '\\1', multiline=True) }}"
+  when: resctrl_is_mounted
+
+- name: Print cos0_schemata
+  debug:
+    msg: "cos0_l2schemata = {{ cos0_l2schemata }}, cos0_l3schemata = {{ cos0_l3schemata }}"
+  when: debug
+
+- name: Clean up files in /tmp
+  file:
+    path: /tmp/{{ inventory_hostname }}
+    state: absent
