@@ -1,0 +1,48 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Set default values for custom facts
+  set_fact:
+    cat_l2: false
+    cat_l3: false
+    resctrl_is_mounted: false
+  when:
+    - cat_l2 is not defined
+    - cat_l3 is not defined
+    - resctrl_is_mounted is not defined
+
+# check if cat is supported
+- name: Get /proc/cpuinfo
+  fetch:
+    src: /proc/cpuinfo
+    dest: /tmp/{{ inventory_hostname }}/
+    flat: true
+    validate_checksum: false
+
+- name: Set cat_l2 fact
+  vars:
+    cpuinfo_grep_catl2: "{{ lookup('file', '/tmp/{{ inventory_hostname }}/cpuinfo') | regex_search('cat_l2') }}"
+  set_fact:
+    cat_l2: "{{ cpuinfo_grep_catl2 != '' }}"
+  when: cpuinfo_grep_catl2 | length > 0
+
+- name: Print cat_l2 fact
+  debug:
+    var: cat_l2
+  when: debug
+
+- name: Set cat_l3 fact
+  vars:
+    cpuinfo_grep_catl3: "{{ lookup('file', '/tmp/{{ inventory_hostname }}/cpuinfo') | regex_search('cat_l3') }}"
+  set_fact:
+    cat_l3: "{{ cpuinfo_grep_catl3 != '' }}"
+  when: cpuinfo_grep_catl3 | length > 0
+
+- name: Print cat_l3 fact
+  debug:
+    var: cat_l3
+  when: debug
+
+- name: Set resctrl_is_mounted fact
+  include_tasks: tasks/resctrl_mounted.yaml

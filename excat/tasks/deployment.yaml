@@ -1,0 +1,190 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Create new COS (buffer) on node
+  rdt_new_cos:
+  become: true
+  register: rdt_new_cos_output
+
+- name: Set buffer name
+  set_fact:
+    buffer_name: "{{ rdt_new_cos_output.cos_name }}"
+
+- name: Print unique buffer name
+  debug:
+    msg: "buffer_name: {{ buffer_name }}"
+  when: debug
+
+- name: Size buffer
+  rdt_schemata:
+    cache_level: "{{ cache_level_request }}"
+    bitmask_hex: "{{ best_slot.bitmask }}"
+    cos_name: "{{ buffer_name }}"
+  become: true
+
+- name: Get relevant cos0 schemata
+  set_fact:
+    cos0_schemata: "{{ cos0_l2schemata if cache_level_request == 2 else cos0_l3schemata | join('') }}"
+
+- name: Print old cos0 schemata
+  debug:
+    var: cos0_schemata
+  when: debug
+
+- name: Get new cos0 schemata
+  set_fact:
+    cos0_schemata: "{{ ((cos0_schemata | int(base=16)) - (cos0_schemata | int(base=16) | dec_and(best_slot.bitmask | int(base=16)))) | dec2hex }}"
+  when: best_slot.cos0used
+
+- name: Print new cos0 schemata
+  debug:
+    var: cos0_schemata
+  when:
+    - best_slot.cos0used
+    - debug
+
+- name: Resize cos0
+  rdt_schemata:
+    cache_level: "{{ cache_level_request }}"
+    bitmask_hex: "{{ cos0_schemata }}"
+    cos_name: "default"
+  become: true
+  when: best_slot.cos0used
+
+- name: Copy workload to remote host
+  copy:
+    src: '{{ path2workload }}'
+    dest: /tmp
+    mode: '777'
+
+- name: Set log_file path
+  set_fact:
+    log_file: "{{ path2logfile if path2logfile else default_path }}"
+  vars:
+    default_path: "/tmp/{{ buffer_name }}"
+  when: not containerized
+
+- name: Start workload with exclusive CAT buffer
+  rdt_exec_in_cos:
+    executable: "/tmp/{{ path2workload | basename }}"
+    cos_name: "{{ buffer_name }}"
+    log_file: "{{ log_file }}"
+  register: exec_output
+  become: true
+  when: not containerized
+
+- name: Print start_output
+  debug:
+    msg:
+      - "Started {{ path2workload | basename }} (PID = {{ exec_output.pid }}) on host {{ inventory_hostname }}"
+      - "Assigned cache buffer: /sys/fs/resctrl/{{ buffer_name }}"
+      - "Logs: {{ exec_output.log_file }}"
+  when: not containerized
+
+- name: Install Podman
+  package:
+    name: podman
+    state: present
+  become: true
+  when: containerized
+
+- name: Set runc as runtime for Podman
+  ini_file:
+    dest: /usr/share/containers/containers.conf
+    section: engine
+    option: runtime
+    value: '"runc"'
+    backup: true
+    mode: '644'
+  become: true
+  when: containerized
+
+- name: Install jq
+  package:
+    name: jq
+    state: present
+  become: true
+  when: containerized
+
+- name: Create OCI hook for CAT
+  copy:
+    dest: /usr/local/bin/rdt-hook
+    content: |
+      #!/bin/bash
+      input="-"
+      cat "$input" | jq '.linux += { intelRdt: {"closID": "{{ buffer_name }}" }}'
+    mode: '0744'
+  become: true
+  when: containerized
+
+- name: Create OCI hook directory
+  ansible.builtin.file:
+    path: /usr/share/containers/oci/hooks.d
+    state: directory
+    mode: '751'
+  become: true
+  when: containerized
+
+- name: Add hook as OCI hook
+  copy:
+    dest: /usr/share/containers/oci/hooks.d/rdt.json
+    content: |
+      {
+        "version": "1.0.0",
+        "hook": {
+          "path": "/usr/local/bin/rdt-hook"
+        },
+        "when": {
+                "annotations": {
+                        "rdt-hook": "yes"
+                }
+        },
+        "stages": ["precreate"]
+      }
+    mode: '644'
+  become: true
+  when: containerized
+
+- name: Load image
+  shell:
+    cmd: |
+      podman load -i /tmp/{{ path2workload | basename }}
+  become: true
+  register: load_output
+  changed_when: load_output.rc == 0
+  when: containerized
+
+- name: Get image name and version
+  set_fact:
+    image: "{{ load_output.stdout_lines[-1] | regex_replace(regex, replace) }}"
+  vars:
+    regex: '^Loaded image.*: localhost/(.*):(.*)$'
+    replace: 'localhost/\1:\2'
+  when: containerized
+
+- name: Debug
+  debug:
+    msg: "Successfully loaded image {{ image }}"
+  when: containerized
+
+- name: Run container
+  shell:
+    cmd: |
+      podman run -d --annotation=rdt-hook=yes {{ podman_run_flags }} {{ image }}
+  args:
+    executable: /bin/bash
+  environment:
+    PATH: $PATH:/usr/local/bin:/usr/bin:/usr/sbin
+  become: true
+  register: podman_out
+  changed_when: podman_out.rc == 0
+  when: containerized
+
+- name: Debug
+  debug:
+    msg:
+      - "Started container {{ podman_out.stdout[:12] }} on host {{ inventory_hostname }}"
+      - "Utilized cache buffer: /sys/fs/resctrl/{{ buffer_name }}"
+      - "Attach to the containers TTY with 'sudo podman attach {{ podman_out.stdout[:12] }}'"
+  when: containerized

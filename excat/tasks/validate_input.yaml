@@ -1,0 +1,40 @@
+---
+# Copyright (C) 2023 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+- name: Validate cache_level_request
+  assert:
+    that:
+      - cache_level_request == 2 or cache_level_request == 3
+    fail_msg: "cache_level_request can only be 2 or 3"
+
+- name: Validate buffer_size_request
+  assert:
+    that:
+      - buffer_size_request|int > 0
+    fail_msg: "buffer_size_request must be a positive integer"
+
+- name: Validate containerized
+  assert:
+    that:
+      - containerized == true or containerized == false
+    fail_msg: "containerized can only be: true, yes, on, 1, false, no, off, 0"
+
+- name: Validate min_defaultclass_size
+  assert:
+    that:
+      - min_defaultclass_size > 0 and min_defaultclass_size < 100
+    fail_msg: "min_defaultclass_size must be a positive integer between 0 and 100 (non-including)"
+
+- name: Validate debug
+  assert:
+    that:
+      - debug == true or debug == false
+    fail_msg: "debug can only be: true, yes, on, 1, false, no, off, 0"
+
+- name: Validate container image
+  assert:
+    that:
+      - path2workload.split('.')|last == "tar"
+    fail_msg: "container image has to be provided as a tar file"
+  when: containerized
