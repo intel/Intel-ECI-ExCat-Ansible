@@ -11,14 +11,14 @@ permissions:
 
 jobs:
   coverity:
-    runs-on: 
+    runs-on:
       - ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: vapier/coverity-scan-action@v1
-      with:
-        project: Intel-ECI-ExCat-Ansible
-        email: ${{ secrets.COVERITY_SCAN_EMAIL }}
-        token: ${{ secrets.COVERITY_SCAN_TOKEN }}
-        build_language: 'other'
-        command: '--no-command --fs-capture-search ./ --fs-capture-search-exclude-regex /cov-analysis/.* --fs-capture-search-exclude-regex /example/.*'
+      - uses: actions/checkout@v4
+      - uses: vapier/coverity-scan-action@v1
+        with:
+          project: Intel-ECI-ExCat-Ansible
+          email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+          token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+          build_language: 'other'
+          command: '--no-command --fs-capture-search ./ --fs-capture-search-exclude-regex /cov-analysis/.* --fs-capture-search-exclude-regex /example/.*'
