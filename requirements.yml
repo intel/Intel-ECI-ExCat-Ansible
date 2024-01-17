@@ -1,0 +1,5 @@
+---
+# This is needed for ansible-lint to find dependencies
+collections:
+  - ansible.posix
+  - community.general
