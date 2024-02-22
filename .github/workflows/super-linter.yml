@@ -4,7 +4,9 @@ on:
     branches:
       - main
   pull_request:
-permissions: read-all
+permissions: 
+  contents: read
+  pull-requests: read
 jobs:
   build:
     name: Lint Code Base
@@ -18,10 +20,6 @@ jobs:
       - name: Lint Code Base
         uses: super-linter/super-linter@v6
         env:
-          # VALIDATE_ANSIBLE: true
-          # VALIDATE_PYTHON: true
-          # VALIDATE_GITLEAKS: true
-          # VALIDATE_MARKDOWN: true
           LINTER_RULES_PATH: /
           ANSIBLE_CONFIG_FILE: .ansible-lint
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
