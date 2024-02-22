@@ -24,6 +24,7 @@ jobs:
           # VALIDATE_PYTHON: true
           # VALIDATE_GITLEAKS: true
           # VALIDATE_MARKDOWN: true
+          LINTER_RULES_PATH: /
           ANSIBLE_CONFIG_FILE: .ansible-lint
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           OUTPUT_FOLDER: Reports
