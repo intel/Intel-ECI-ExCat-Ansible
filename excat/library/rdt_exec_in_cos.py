@@ -4,6 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import absolute_import, division, print_function
+from pathlib import Path
+import re
+import os
+import subprocess
+import datetime
+import uuid
+import yaml
+from ansible.module_utils.basic import AnsibleModule
 
 __metaclass__ = type
 
@@ -81,10 +89,6 @@ log_file:
     returned: always
     sample: "/tmp/20230505193659-77cc.log"
 """
-
-from ansible.module_utils.basic import AnsibleModule
-from pathlib import Path
-import re, yaml, os, subprocess, datetime, uuid
 
 
 def run_module():
@@ -171,12 +175,12 @@ def run_module():
 
     # apply changes: write new PID to tasks file of COS
     try:
-        tasks_file = tasks_path.open("w")
+        tasks_file = tasks_path.open("w", encoding="utf-8")
         print(result["pid"], file=tasks_file)
         tasks_file.flush()
         os.fsync(tasks_file)
         tasks_file.close()
-    except Exception as e:
+    except IOError as e:
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
         rdt_cmd_status = rdt_cmd_status_path.open().read()
@@ -191,8 +195,8 @@ def run_module():
     # return result
     module.exit_json(**result)
 
-
 def main():
+    """main"""
     run_module()
 
 
