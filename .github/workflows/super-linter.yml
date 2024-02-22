@@ -1,0 +1,28 @@
+name: Lint Code Base
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  build:
+    name: Lint Code Base
+    runs-on:
+      - ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Lint Code Base
+        uses: super-linter/super-linter@v5.7.2
+        env:
+          ANSIBLE_DIRECTORY: excat
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          LINTER_RULES_PATH: .github/workflows/config/
+          OUTPUT_FOLDER: Reports
+          FILTER_REGEX_EXCLUDE: (/**assets/.*|/**/.github/workflows/.*|/**/.golangci.yml|/**/.pre-commit-config.yaml|/**/Jenkinsfile|/**test*)
+          # VALIDATE_ALL_CODEBASE: false
