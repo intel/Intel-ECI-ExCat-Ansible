@@ -20,13 +20,11 @@ jobs:
       - name: Lint Code Base
         uses: super-linter/super-linter@v6
         env:
-          VALIDATE_ANSIBLE: true
-          VALIDATE_PYTHON: true
-          VALIDATE_GITLEAKS: true
-          VALIDATE_MARKDOWN: true
-          ANSIBLE_DIRECTORY: .ansible-lint
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LINTER_RULES_PATH: .github/workflows/config/
+          # VALIDATE_ANSIBLE: true
+          # VALIDATE_PYTHON: true
+          # VALIDATE_GITLEAKS: true
+          # VALIDATE_MARKDOWN: true
+          ANSIBLE_CONFIG_FILE: .ansible-lint
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           OUTPUT_FOLDER: Reports
           FILTER_REGEX_EXCLUDE: (/**assets/.*|/**/.github/workflows/.*|/**/.golangci.yml|/**/.pre-commit-config.yaml|/**/Jenkinsfile|/**test*)
-          # VALIDATE_ALL_CODEBASE: false
