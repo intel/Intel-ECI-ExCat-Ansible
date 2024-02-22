@@ -21,9 +21,9 @@ A clear and concise description of what you expected to happen.
 Add at least `ansible.log`.
 
 **System (please complete the following information):**
- - OS
- - Version of Podman
- - ExCAT version
+- OS
+- Version of Podman
+- ExCAT version
 
 **Additional context**
 Add any other context about the problem here.

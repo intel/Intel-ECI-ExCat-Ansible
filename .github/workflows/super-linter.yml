@@ -18,10 +18,14 @@ jobs:
         with:
           fetch-depth: 0
       - name: Lint Code Base
-        uses: super-linter/super-linter@v5.7.2
+        uses: super-linter/super-linter@v6
         env:
-          ANSIBLE_DIRECTORY: excat
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          VALIDATE_ANSIBLE: true
+          VALIDATE_PYTHON: true
+          VALIDATE_GITLEAKS: true
+          VALIDATE_MARKDOWN: true
+          ANSIBLE_DIRECTORY: .ansible-lint
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: .github/workflows/config/
           OUTPUT_FOLDER: Reports
           FILTER_REGEX_EXCLUDE: (/**assets/.*|/**/.github/workflows/.*|/**/.golangci.yml|/**/.pre-commit-config.yaml|/**/Jenkinsfile|/**test*)
