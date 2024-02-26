@@ -3,12 +3,13 @@
 # Copyright (C) 2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from __future__ import (absolute_import, division, print_function)
+from __future__ import absolute_import, division, print_function
+
 __metaclass__ = type
 
 RDT_PATH = "/sys/fs/resctrl/"
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: rdt_schemata
 
@@ -42,9 +43,9 @@ options:
 
 author:
     - Wolfgang Pross
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
 # Assign 2 cache ways in "/sys/fs/resctrl/myCacheBuffer/schemata" at the 3rd and 4th bit position
 - name: Size buffer
   rdt_schemata:
@@ -52,9 +53,9 @@ EXAMPLES = r'''
     bitmask_hex: "000c"
     cos_name: "myCacheBuffer"
   become: true
-'''
+"""
 
-RETURN = r'''
+RETURN = r"""
 # Return values with samples
 schemata:
     description: the schemata file of the desired COS after the applied change
@@ -70,33 +71,26 @@ schemata_path:
     type: str
     returned: always
     sample: '/sys/fs/resctrl/myCos'
-'''
+"""
 
 from ansible.module_utils.basic import AnsibleModule
 from pathlib import Path
 import re, yaml, os
 
+
 def run_module():
     # module input
     module_args = dict(
-        cache_level=dict(type='int', required=True),
-        bitmask_hex=dict(type='str', required=True),
-        cos_name=dict(type='str', required=True)
+        cache_level=dict(type="int", required=True),
+        bitmask_hex=dict(type="str", required=True),
+        cos_name=dict(type="str", required=True),
     )
 
     # module output
-    result = dict(
-        changed=False,
-        schemata_path='',
-        schemata=[],
-        diff = {}
-    )
+    result = dict(changed=False, schemata_path="", schemata=[], diff={})
 
     # instantiate AnsibleModule object
-    module = AnsibleModule(
-        argument_spec=module_args,
-        supports_check_mode=True
-    )
+    module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
 
     # get current schemata
     rdt_path = Path(RDT_PATH)
@@ -107,36 +101,35 @@ def run_module():
 
     if not schemata_path.exists():
         module.fail_json(
-                f'cos with cos_name = {module.params["cos_name"]} does not exist',
-                **result)
+            f'cos with cos_name = {module.params["cos_name"]} does not exist', **result
+        )
 
-    result['schemata_path'] = str(schemata_path)
+    result["schemata_path"] = str(schemata_path)
     got = schemata_path.open().read().splitlines()
     wanted = []
 
     # create desired schemata
     for line in got:
         if re.search(rf'L{str(module.params["cache_level"])}', line) is not None:
-            wanted.append(re.sub(r"(?<=[0-9]=)[0-9a-f]+", module.params["bitmask_hex"], line))
+            wanted.append(
+                re.sub(r"(?<=[0-9]=)[0-9a-f]+", module.params["bitmask_hex"], line)
+            )
         else:
             wanted.append(line)
 
     # check if changes would be introduced
     if got != wanted:
-        result['changed'] = True
-        result['diff'] = dict(
-                before = yaml.safe_dump(got),
-                after = yaml.safe_dump(wanted)
-        )
+        result["changed"] = True
+        result["diff"] = dict(before=yaml.safe_dump(got), after=yaml.safe_dump(wanted))
 
     # if no changes, return with result['changed'] = False
-    if module.check_mode or not result['changed']:
-        result['schemata'] = wanted
+    if module.check_mode or not result["changed"]:
+        result["schemata"] = wanted
         module.exit_json(**result)
 
     # apply changes: write new schemata
     try:
-        schemata_file = schemata_path.open('w')
+        schemata_file = schemata_path.open("w")
         for line in wanted:
             print(line, file=schemata_file)
         schemata_file.flush()
@@ -146,12 +139,13 @@ def run_module():
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
         rdt_cmd_status = rdt_cmd_status_path.open().read()
-        if re.search(r'ok', rdt_cmd_status) is None:
+        if re.search(r"ok", rdt_cmd_status) is None:
             module.fail_json(
-                    f"rdt error when writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status}",
-                    **result)
+                f"rdt error when writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status}",
+                **result,
+            )
 
-    result['schemata'] = wanted
+    result["schemata"] = wanted
 
     # return result
     module.exit_json(**result)
@@ -161,5 +155,5 @@ def main():
     run_module()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

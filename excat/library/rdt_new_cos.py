@@ -3,12 +3,13 @@
 # Copyright (C) 2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from __future__ import (absolute_import, division, print_function)
+from __future__ import absolute_import, division, print_function
+
 __metaclass__ = type
 
 RDT_PATH = "/sys/fs/resctrl/"
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: rdt_new_cos
 
@@ -24,50 +25,47 @@ description:
 
 author:
     - Wolfgang Pross
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
 # Create new COS in "/sys/fs/resctrl"
 - name: Create new COS
   rdt_new_cos:
   become: true
-'''
+"""
 
-RETURN = r'''
+RETURN = r"""
 # Return values with samples
 cos_name:
     description: the name of the Class of Service (COS)
     type: str
     returned: always
     sample: '20230504122939966009'
-'''
+"""
 
 from ansible.module_utils.basic import AnsibleModule
 from pathlib import Path
 import datetime, re, uuid
 
+
 def run_module():
     # module input
-    module_args = dict(
-    )
+    module_args = dict()
 
     # module output
-    result = dict(
-        changed=False,
-        cos_name=''
-    )
+    result = dict(changed=False, cos_name="")
 
     # instantiate AnsibleModule object
-    module = AnsibleModule(
-        argument_spec=module_args,
-        supports_check_mode=False
-    )
+    module = AnsibleModule(argument_spec=module_args, supports_check_mode=False)
 
     # get unique name containing current date and time
-    result['cos_name'] = datetime.datetime.now().strftime('%Y%m%d%H%M%S') + \
-            '-' + str(uuid.uuid4().hex)[:4]
+    result["cos_name"] = (
+        datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        + "-"
+        + str(uuid.uuid4().hex)[:4]
+    )
     rdt_path = Path(RDT_PATH)
-    cos_path = rdt_path.joinpath(result['cos_name'])
+    cos_path = rdt_path.joinpath(result["cos_name"])
 
     # apply changes: create new cos
     try:
@@ -76,13 +74,14 @@ def run_module():
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
         rdt_cmd_status = rdt_cmd_status_path.open().read()
-        if re.search(r'ok', rdt_cmd_status) is None:
+        if re.search(r"ok", rdt_cmd_status) is None:
             module.fail_json(
-                    f"rdt error when creating new COS at {cos_path}: {e.args}: {rdt_cmd_status}",
-                    **result)
+                f"rdt error when creating new COS at {cos_path}: {e.args}: {rdt_cmd_status}",
+                **result,
+            )
 
     # return result
-    result['changed'] = True
+    result["changed"] = True
     module.exit_json(**result)
 
 
@@ -90,5 +89,5 @@ def main():
     run_module()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
