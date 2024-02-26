@@ -2,14 +2,16 @@
 
 # Copyright (C) 2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-
+"""
+rdt_exec_in_cos ansible module See documentation below for usage details
+"""
 from __future__ import absolute_import, division, print_function
-from pathlib import Path
-import re
-import os
-import subprocess
 import datetime
+import os
+import re
+import subprocess
 import uuid
+from pathlib import Path
 import yaml
 from ansible.module_utils.basic import AnsibleModule
 
@@ -27,7 +29,7 @@ description:
   - requires a pre-configured Class of Service (COS) in /sys/fs/resctrl
   - requires root privileges
   - writes the output and errors from the executable to a log_file
-  - if the COS is aleady used, a warning is printed with the PIDs in the tasks file
+  - if the COS is already used, a warning is printed with the PIDs in the tasks file
   - see <https://docs.kernel.org/x86/resctrl.html> for more details about resctrl
 
 options:
@@ -92,6 +94,9 @@ log_file:
 
 
 def run_module():
+    """This function will first check if the COS exists, start the executable and write
+    the executable PID to the tasks file of COS
+    """
     # module input
     module_args = dict(
         executable=dict(type="str", required=True),
