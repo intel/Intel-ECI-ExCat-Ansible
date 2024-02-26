@@ -57,10 +57,10 @@ cos_name:
 def run_module():
     """This function create a COS with a unique name from cos_name"""
     # module input
-    module_args = dict()
+    module_args = {}
 
     # module output
-    result = dict(changed=False, cos_name="")
+    result = {"changed": False, "cos_name": ""}
 
     # instantiate AnsibleModule object
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=False)
@@ -80,12 +80,14 @@ def run_module():
     except Exception as e:
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
-        rdt_cmd_status = rdt_cmd_status_path.open(encoding="utf-8").read()
-        if re.search(r"ok", rdt_cmd_status) is None:
-            module.fail_json(
-                f"rdt error when creating new COS at {cos_path}: {e.args}: {rdt_cmd_status}",
-                **result,
-            )
+
+        with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
+            rdt_cmd_status.read()
+            if re.search(r"ok", rdt_cmd_status) is None:
+                module.fail_json(
+                    f"rdt error when creating new COS at {cos_path}: {e.args}: {rdt_cmd_status}",
+                    **result,
+                )
 
     # return result
     result["changed"] = True

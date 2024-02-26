@@ -100,15 +100,15 @@ def run_module():
     the executable PID to the tasks file of COS
     """
     # module input
-    module_args = dict(
-        executable=dict(type="str", required=True),
-        args=dict(type="list", required=False),
-        cos_name=dict(type="str", required=True),
-        log_file=dict(type="str", required=False),
-    )
+    module_args = {
+        "executable": {"type": "str", "required": True},
+        "args": {"type": "list", "required": False},
+        "cos_name": {"type": "str", "required": True},
+        "log_file": {"type": "str", "required": False},
+    }
 
     # module output
-    result = dict(changed=False, pid="", tasks=[], log_file="", diff={})
+    result = {"changed": False, "pid": "", "tasks": [], "log_file": "", "diff": {}}
 
     # instantiate AnsibleModule object
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -158,23 +158,25 @@ def run_module():
             with Path(result["log_file"]).open("w", encoding="utf-8") as log_file:
                 # check args
                 if module.params["args"]:
-                    command = [str(exec_path)].extend(module.params["args"])
-                else:
-                    command = [str(exec_path)]
+                    [str(exec_path)].extend(module.params["args"])
+
+                command = [str(exec_path)]
 
                 # start executable
-                result["pid"] = subprocess.Popen(
+                with subprocess.Popen(
                     command,
                     stdin=subprocess.DEVNULL,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
-                ).pid
+                ) as subprocess_h:
+                    result["pid"] = subprocess_h.pid
                 wanted = got.append(result["pid"])
                 result["changed"] = True
-                result["diff"] = dict(
-                    before=yaml.safe_dump(got), after=yaml.safe_dump(wanted)
-                )
+                result["diff"] = {
+                    "before": yaml.safe_dump(got),
+                    "after": yaml.safe_dump(wanted),
+                }
         except Exception as e:
             module.fail_json(
                 f"log_file {result['log_file']} can not be opened for writing: {e.args}",
@@ -194,7 +196,8 @@ def run_module():
             rdt_cmd_status.read()
             if re.search(r"ok", rdt_cmd_status) is None:
                 module.fail_json(
-                    f"rdt error when writing PID {result['pid']} to {tasks_path}: {e.args}: {rdt_cmd_status}",
+                    f"rdt err: writing PID {result['pid']} \
+                    to {tasks_path}: {e.args}: {rdt_cmd_status}",
                     **result,
                 )
 

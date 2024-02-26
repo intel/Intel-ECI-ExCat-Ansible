@@ -90,14 +90,14 @@ def run_module():
     This function updates cos schemata with requested mask
     """
     # module input
-    module_args = dict(
-        cache_level=dict(type="int", required=True),
-        bitmask_hex=dict(type="str", required=True),
-        cos_name=dict(type="str", required=True),
-    )
+    module_args = {
+        "cache_level": {"type": "int", "required": True},
+        "bitmask_hex": {"type": "str", "required": True},
+        "cos_name": {"type": "str", "required": True},
+    }
 
     # module output
-    result = dict(changed=False, schemata_path="", schemata=[], diff={})
+    result = {"changed": False, "schemata_path": "", "schemata": [], "diff": {}}
 
     # instantiate AnsibleModule object
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -131,9 +131,10 @@ def run_module():
         # check if changes would be introduced
         if got != wanted:
             result["changed"] = True
-            result["diff"] = dict(
-                before=yaml.safe_dump(got), after=yaml.safe_dump(wanted)
-            )
+            result["diff"] = {
+                "before": yaml.safe_dump(got),
+                "after": yaml.safe_dump(wanted),
+            }
 
     # if no changes, return with result['changed'] = False
     if module.check_mode or not result["changed"]:
