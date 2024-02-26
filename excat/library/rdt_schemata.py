@@ -3,7 +3,18 @@
 # Copyright (C) 2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+rdt_schemata ansible module See documentation below for usage details
+"""
+
 from __future__ import absolute_import, division, print_function
+
+import os
+import re
+from pathlib import Path
+
+import yaml
+from ansible.module_utils.basic import AnsibleModule
 
 __metaclass__ = type
 
@@ -73,12 +84,11 @@ schemata_path:
     sample: '/sys/fs/resctrl/myCos'
 """
 
-from ansible.module_utils.basic import AnsibleModule
-from pathlib import Path
-import re, yaml, os
-
 
 def run_module():
+    """
+    This function updates cos schemata with requested mask
+    """
     # module input
     module_args = dict(
         cache_level=dict(type="int", required=True),
@@ -105,22 +115,25 @@ def run_module():
         )
 
     result["schemata_path"] = str(schemata_path)
-    got = schemata_path.open().read().splitlines()
     wanted = []
+    with schemata_path.open(encoding="utf-8") as got:
+        got.read().splitlines()
 
-    # create desired schemata
-    for line in got:
-        if re.search(rf'L{str(module.params["cache_level"])}', line) is not None:
-            wanted.append(
-                re.sub(r"(?<=[0-9]=)[0-9a-f]+", module.params["bitmask_hex"], line)
+        # create desired schemata
+        for line in got:
+            if re.search(rf'L{str(module.params["cache_level"])}', line) is not None:
+                wanted.append(
+                    re.sub(r"(?<=[0-9]=)[0-9a-f]+", module.params["bitmask_hex"], line)
+                )
+            else:
+                wanted.append(line)
+
+        # check if changes would be introduced
+        if got != wanted:
+            result["changed"] = True
+            result["diff"] = dict(
+                before=yaml.safe_dump(got), after=yaml.safe_dump(wanted)
             )
-        else:
-            wanted.append(line)
-
-    # check if changes would be introduced
-    if got != wanted:
-        result["changed"] = True
-        result["diff"] = dict(before=yaml.safe_dump(got), after=yaml.safe_dump(wanted))
 
     # if no changes, return with result['changed'] = False
     if module.check_mode or not result["changed"]:
@@ -129,21 +142,24 @@ def run_module():
 
     # apply changes: write new schemata
     try:
-        schemata_file = schemata_path.open("w")
-        for line in wanted:
-            print(line, file=schemata_file)
-        schemata_file.flush()
-        os.fsync(schemata_file)
-        schemata_file.close()
+        with schemata_path.open(
+            "w",
+            encoding="utf-8",
+        ) as schemata_file:
+            for line in wanted:
+                print(line, file=schemata_file)
+            schemata_file.flush()
+            os.fsync(schemata_file)
     except Exception as e:
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
-        rdt_cmd_status = rdt_cmd_status_path.open().read()
-        if re.search(r"ok", rdt_cmd_status) is None:
-            module.fail_json(
-                f"rdt error when writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status}",
-                **result,
-            )
+        with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
+            rdt_cmd_status.read()
+            if re.search(r"ok", rdt_cmd_status) is None:
+                module.fail_json(
+                    f"rdt error writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status}",
+                    **result,
+                )
 
     result["schemata"] = wanted
 
@@ -152,6 +168,7 @@ def run_module():
 
 
 def main():
+    """main"""
     run_module()
 
 

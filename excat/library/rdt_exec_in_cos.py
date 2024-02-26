@@ -6,12 +6,14 @@
 rdt_exec_in_cos ansible module See documentation below for usage details
 """
 from __future__ import absolute_import, division, print_function
+
 import datetime
 import os
 import re
 import subprocess
 import uuid
 from pathlib import Path
+
 import yaml
 from ansible.module_utils.basic import AnsibleModule
 
@@ -134,68 +136,70 @@ def run_module():
 
     # get current tasks file
     tasks_path = cos_path.joinpath("tasks")
-    got = tasks_path.open().read().splitlines()
-    if got:
-        module.warn(
-            f"COS {module.params['cos_name']} is already in use by PID(s) {got}"
-        )
+    with tasks_path.open(encoding="utf-8") as got:
+        got.read().splitlines()
+        if got:
+            module.warn(
+                f"COS {module.params['cos_name']} is already in use by PID(s) {got}"
+            )
 
-    # set output log file
-    if module.params["log_file"]:
-        result["log_file"] = module.params["log_file"]
-    else:
-        result["log_file"] = (
-            LOG_PATH
-            + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            + "-"
-            + str(uuid.uuid4().hex)[:4]
-            + ".log"
-        )
-    try:
-        log_file = Path(result["log_file"]).open("w")
-    except Exception as e:
-        module.fail_json(
-            f"log_file {result['log_file']} can not be opened for writing: {e.args}",
-            **result,
-        )
+        # set output log file
+        if module.params["log_file"]:
+            result["log_file"] = module.params["log_file"]
+        else:
+            result["log_file"] = (
+                LOG_PATH
+                + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                + "-"
+                + str(uuid.uuid4().hex)[:4]
+                + ".log"
+            )
+        try:
+            with Path(result["log_file"]).open("w", encoding="utf-8") as log_file:
+                # check args
+                if module.params["args"]:
+                    command = [str(exec_path)].extend(module.params["args"])
+                else:
+                    command = [str(exec_path)]
 
-    # check args
-    if module.params["args"]:
-        command = [str(exec_path)].extend(module.params["args"])
-    else:
-        command = [str(exec_path)]
-
-    # start executable
-    result["pid"] = subprocess.Popen(
-        command,
-        stdin=subprocess.DEVNULL,
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-    ).pid
-    wanted = got.append(result["pid"])
-
-    result["changed"] = True
-    result["diff"] = dict(before=yaml.safe_dump(got), after=yaml.safe_dump(wanted))
-
-    # apply changes: write new PID to tasks file of COS
-    try:
-        tasks_file = tasks_path.open("w", encoding="utf-8")
-        print(result["pid"], file=tasks_file)
-        tasks_file.flush()
-        os.fsync(tasks_file)
-        tasks_file.close()
-    except IOError as e:
-        # check rdt for errors
-        rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
-        rdt_cmd_status = rdt_cmd_status_path.open().read()
-        if re.search(r"ok", rdt_cmd_status) is None:
+                # start executable
+                result["pid"] = subprocess.Popen(
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                ).pid
+                wanted = got.append(result["pid"])
+                result["changed"] = True
+                result["diff"] = dict(
+                    before=yaml.safe_dump(got), after=yaml.safe_dump(wanted)
+                )
+        except Exception as e:
             module.fail_json(
-                f"rdt error when writing PID {result['pid']} to {tasks_path}: {e.args}: {rdt_cmd_status}",
+                f"log_file {result['log_file']} can not be opened for writing: {e.args}",
                 **result,
             )
 
-    result["tasks"] = tasks_path.open().read().splitlines()
+    # apply changes: write new PID to tasks file of COS
+    try:
+        with tasks_path.open("w", encoding="utf-8") as tasks_file:
+            print(result["pid"], file=tasks_file)
+            tasks_file.flush()
+            os.fsync(tasks_file)
+    except IOError as e:
+        # check rdt for errors
+        rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
+        with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
+            rdt_cmd_status.read()
+            if re.search(r"ok", rdt_cmd_status) is None:
+                module.fail_json(
+                    f"rdt error when writing PID {result['pid']} to {tasks_path}: {e.args}: {rdt_cmd_status}",
+                    **result,
+                )
+
+    with tasks_path.open(encoding="utf-8") as tasks_file:
+        result["tasks"] = tasks_file.read().splitlines()
 
     # return result
     module.exit_json(**result)
