@@ -15,7 +15,7 @@ from pathlib import Path
 
 from ansible.module_utils.basic import AnsibleModule
 
-__metaclass__ = type # pylint: disable=invalid-name
+__metaclass__ = type  # pylint: disable=invalid-name
 
 RDT_PATH = "/sys/fs/resctrl/"
 

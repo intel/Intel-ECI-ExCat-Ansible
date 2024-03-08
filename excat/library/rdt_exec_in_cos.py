@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 from ansible.module_utils.basic import AnsibleModule
 
-__metaclass__ = type # pylint: disable=invalid-name
+__metaclass__ = type  # pylint: disable=invalid-name
 
 RDT_PATH = "/sys/fs/resctrl/"
 LOG_PATH = "/tmp/"
