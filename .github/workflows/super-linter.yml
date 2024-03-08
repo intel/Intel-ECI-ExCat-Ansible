@@ -27,6 +27,7 @@ jobs:
         env:
           LINTER_RULES_PATH: /
           ANSIBLE_CONFIG_FILE: .ansible-lint
+          PYTHON_PYLINT_CONFIG_FILE: .pylintrc
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           OUTPUT_FOLDER: Reports
           FILTER_REGEX_EXCLUDE: (/**assets/.*|/**/.github/workflows/.*|/**/.golangci.yml|/**/.pre-commit-config.yaml|/**/Jenkinsfile|/**test*)
