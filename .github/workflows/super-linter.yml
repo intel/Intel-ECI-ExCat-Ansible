@@ -21,6 +21,8 @@ jobs:
         uses: super-linter/super-linter@v6
         env:
           LINTER_RULES_PATH: .github/workflows/config/
+          VALIDATE_ANSIBLE: true
+          ANSIBLE_DIRECTORY: ./example
           ANSIBLE_CONFIG_FILE: .ansible-lint
           PYTHON_PYLINT_CONFIG_FILE: .pylintrc
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
