@@ -117,10 +117,10 @@ def run_module():
     result["schemata_path"] = str(schemata_path)
     wanted = []
     with schemata_path.open(encoding="utf-8") as got:
-        got.read().splitlines()
+        got_lines = got.read().splitlines()
 
         # create desired schemata
-        for line in got:
+        for line in got_lines:
             if re.search(rf'L{str(module.params["cache_level"])}', line) is not None:
                 wanted.append(
                     re.sub(r"(?<=[0-9]=)[0-9a-f]+", module.params["bitmask_hex"], line)
@@ -129,10 +129,10 @@ def run_module():
                 wanted.append(line)
 
         # check if changes would be introduced
-        if got != wanted:
+        if got_lines != wanted:
             result["changed"] = True
             result["diff"] = {
-                "before": yaml.safe_dump(got),
+                "before": yaml.safe_dump(got_lines),
                 "after": yaml.safe_dump(wanted),
             }
 
@@ -155,10 +155,10 @@ def run_module():
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
         with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
-            rdt_cmd_status.read()
-            if re.search(r"ok", rdt_cmd_status) is None:
+            rdt_cmd_status_content = rdt_cmd_status.read()
+            if re.search(r"ok", rdt_cmd_status_content) is None:
                 module.fail_json(
-                    f"rdt error writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status}",
+                    f"rdt error writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status_content}",
                     **result,
                 )
 
