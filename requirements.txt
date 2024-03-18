@@ -1,3 +1,0 @@
-ansible==9.2.0
-ansible_core==2.16.3
-PyYAML==6.0.1

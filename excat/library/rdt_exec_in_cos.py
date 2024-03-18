@@ -137,8 +137,8 @@ def run_module():
     # get current tasks file
     tasks_path = cos_path.joinpath("tasks")
     with tasks_path.open(encoding="utf-8") as got:
-        got.read().splitlines()
-        if got:
+        pids = got.read().splitlines()
+        if pids:
             module.warn(
                 f"COS {module.params['cos_name']} is already in use by PID(s) {got}"
             )
@@ -156,11 +156,11 @@ def run_module():
             )
         try:
             with Path(result["log_file"]).open("w", encoding="utf-8") as log_file:
+                command = [str(exec_path)]
+
                 # check args
                 if module.params["args"]:
-                    [str(exec_path)].extend(module.params["args"])
-
-                command = [str(exec_path)]
+                    command.extend(module.params["args"])
 
                 # start executable
                 with subprocess.Popen(
@@ -171,7 +171,8 @@ def run_module():
                     start_new_session=True,
                 ) as subprocess_h:
                     result["pid"] = subprocess_h.pid
-                wanted = got.append(result["pid"])
+                wanted = got
+                wanted.append(result["pid"])
                 result["changed"] = True
                 result["diff"] = {
                     "before": yaml.safe_dump(got),
@@ -193,11 +194,11 @@ def run_module():
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
         with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
-            rdt_cmd_status.read()
-            if re.search(r"ok", rdt_cmd_status) is None:
+            status = rdt_cmd_status.read()
+            if re.search(r"ok", status) is None:
                 module.fail_json(
                     f"rdt err: writing PID {result['pid']} \
-                    to {tasks_path}: {e.args}: {rdt_cmd_status}",
+                    to {tasks_path}: {e.args}: {status}",
                     **result,
                 )
 
