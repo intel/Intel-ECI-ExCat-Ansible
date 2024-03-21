@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 """
 rdt_exec_in_cos ansible module See documentation below for usage details

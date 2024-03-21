@@ -20,10 +20,10 @@ jobs:
       - name: Lint Code Base
         uses: super-linter/super-linter@v6
         env:
-          LINTER_RULES_PATH: .github/workflows/config/
+          LINTER_RULES_PATH: .github/config/
           VALIDATE_ANSIBLE: true
           ANSIBLE_DIRECTORY: ./example
-          ANSIBLE_CONFIG_FILE: .ansible-lint
+          ANSIBLE_CONFIG_FILE: .ansible-lint.yml
           PYTHON_PYLINT_CONFIG_FILE: .pylintrc
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           OUTPUT_FOLDER: Reports
