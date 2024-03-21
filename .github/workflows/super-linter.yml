@@ -22,6 +22,16 @@ jobs:
         env:
           LINTER_RULES_PATH: .github/config/
           VALIDATE_ANSIBLE: true
+          VALIDATE_PYTHON: true
+          VALIDATE_GITLEAKS: true
+          VALIDATE_MARKDOWN: true
+          VALIDATE_NATURAL_LANGUAGE: true
+          VALIDATE_PYTHON_BLACK: true
+          VALIDATE_PYTHON_PYLINT: true
+          VALIDATE_PYTHON_FLAKE8: true
+          VALIDATE_PYTHON_ISORT: true
+          VALIDATE_PYTHON_MYPY: true
+          VALIDATE_YAML: true
           VALIDATE_GITHUB_ACTIONS: true
           ANSIBLE_DIRECTORY: ./example
           ANSIBLE_CONFIG_FILE: .ansible-lint.yml
