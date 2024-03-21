@@ -158,7 +158,8 @@ def run_module():
             rdt_cmd_status_content = rdt_cmd_status.read()
             if re.search(r"ok", rdt_cmd_status_content) is None:
                 module.fail_json(
-                    f"rdt error writing schemata to {schemata_path}: {e.args}: {rdt_cmd_status_content}",
+                    msg=(f"rdt error writing schemata to {schemata_path}: "
+                    f"{e.args}: {rdt_cmd_status_content}"),
                     **result,
                 )
 
