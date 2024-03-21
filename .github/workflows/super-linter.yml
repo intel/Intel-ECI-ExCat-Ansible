@@ -22,6 +22,7 @@ jobs:
         env:
           LINTER_RULES_PATH: .github/config/
           VALIDATE_ANSIBLE: true
+          VALIDATE_GITHUB_ACTIONS: true
           ANSIBLE_DIRECTORY: ./example
           ANSIBLE_CONFIG_FILE: .ansible-lint.yml
           PYTHON_PYLINT_CONFIG_FILE: .pylintrc
