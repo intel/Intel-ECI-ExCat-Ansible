@@ -1,19 +1,23 @@
 #!/usr/bin/python
 
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
-
+"""
+rdt_exec_in_cos ansible module See documentation below for usage details
+"""
 from __future__ import absolute_import, division, print_function
-from pathlib import Path
-import re
-import os
-import subprocess
+
 import datetime
+import os
+import re
+import subprocess
 import uuid
+from pathlib import Path
+
 import yaml
 from ansible.module_utils.basic import AnsibleModule
 
-__metaclass__ = type
+__metaclass__ = type  # pylint: disable=invalid-name
 
 RDT_PATH = "/sys/fs/resctrl/"
 LOG_PATH = "/tmp/"
@@ -27,7 +31,7 @@ description:
   - requires a pre-configured Class of Service (COS) in /sys/fs/resctrl
   - requires root privileges
   - writes the output and errors from the executable to a log_file
-  - if the COS is aleady used, a warning is printed with the PIDs in the tasks file
+  - if the COS is already used, a warning is printed with the PIDs in the tasks file
   - see <https://docs.kernel.org/x86/resctrl.html> for more details about resctrl
 
 options:
@@ -92,16 +96,19 @@ log_file:
 
 
 def run_module():
+    """This function will first check if the COS exists, start the executable and write
+    the executable PID to the tasks file of COS
+    """
     # module input
-    module_args = dict(
-        executable=dict(type="str", required=True),
-        args=dict(type="list", required=False),
-        cos_name=dict(type="str", required=True),
-        log_file=dict(type="str", required=False),
-    )
+    module_args = {
+        "executable": {"type": "str", "required": True},
+        "args": {"type": "list", "required": False},
+        "cos_name": {"type": "str", "required": True},
+        "log_file": {"type": "str", "required": False},
+    }
 
     # module output
-    result = dict(changed=False, pid="", tasks=[], log_file="", diff={})
+    result = {"changed": False, "pid": "", "tasks": [], "log_file": "", "diff": {}}
 
     # instantiate AnsibleModule object
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -129,68 +136,74 @@ def run_module():
 
     # get current tasks file
     tasks_path = cos_path.joinpath("tasks")
-    got = tasks_path.open().read().splitlines()
-    if got:
-        module.warn(
-            f"COS {module.params['cos_name']} is already in use by PID(s) {got}"
-        )
+    with tasks_path.open(encoding="utf-8") as got:
+        pids = got.read().splitlines()
+        if pids:
+            module.warn(
+                f"COS {module.params['cos_name']} is already in use by PID(s) {got}"
+            )
 
-    # set output log file
-    if module.params["log_file"]:
-        result["log_file"] = module.params["log_file"]
-    else:
-        result["log_file"] = (
-            LOG_PATH
-            + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-            + "-"
-            + str(uuid.uuid4().hex)[:4]
-            + ".log"
-        )
-    try:
-        log_file = Path(result["log_file"]).open("w")
-    except Exception as e:
-        module.fail_json(
-            f"log_file {result['log_file']} can not be opened for writing: {e.args}",
-            **result,
-        )
+        # set output log file
+        if module.params["log_file"]:
+            result["log_file"] = module.params["log_file"]
+        else:
+            result["log_file"] = (
+                LOG_PATH
+                + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                + "-"
+                + str(uuid.uuid4().hex)[:4]
+                + ".log"
+            )
+        try:
+            with Path(result["log_file"]).open("w", encoding="utf-8") as log_file:
+                command = [str(exec_path)]
 
-    # check args
-    if module.params["args"]:
-        command = [str(exec_path)].extend(module.params["args"])
-    else:
-        command = [str(exec_path)]
+                # check args
+                if module.params["args"]:
+                    command.extend(module.params["args"])
 
-    # start executable
-    result["pid"] = subprocess.Popen(
-        command,
-        stdin=subprocess.DEVNULL,
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-    ).pid
-    wanted = got.append(result["pid"])
-
-    result["changed"] = True
-    result["diff"] = dict(before=yaml.safe_dump(got), after=yaml.safe_dump(wanted))
-
-    # apply changes: write new PID to tasks file of COS
-    try:
-        tasks_file = tasks_path.open("w", encoding="utf-8")
-        print(result["pid"], file=tasks_file)
-        tasks_file.flush()
-        os.fsync(tasks_file)
-        tasks_file.close()
-    except IOError as e:
-        # check rdt for errors
-        rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
-        rdt_cmd_status = rdt_cmd_status_path.open().read()
-        if re.search(r"ok", rdt_cmd_status) is None:
+                # start executable
+                with subprocess.Popen(
+                    command,
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                ) as subprocess_h:
+                    result["pid"] = subprocess_h.pid
+                wanted = got
+                wanted.append(result["pid"])
+                result["changed"] = True
+                result["diff"] = {
+                    "before": yaml.safe_dump(got),
+                    "after": yaml.safe_dump(wanted),
+                }
+        except Exception as e:
             module.fail_json(
-                f"rdt error when writing PID {result['pid']} to {tasks_path}: {e.args}: {rdt_cmd_status}",
+                f"log_file {result['log_file']} can not be opened for writing: {e.args}",
                 **result,
             )
 
-    result["tasks"] = tasks_path.open().read().splitlines()
+    # apply changes: write new PID to tasks file of COS
+    try:
+        with tasks_path.open("w", encoding="utf-8") as tasks_file:
+            print(result["pid"], file=tasks_file)
+            tasks_file.flush()
+            os.fsync(tasks_file)
+    except IOError as e:
+        # check rdt for errors
+        rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
+        with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
+            status = rdt_cmd_status.read()
+            if re.search(r"ok", status) is None:
+                module.fail_json(
+                    f"rdt err: writing PID {result['pid']} \
+                    to {tasks_path}: {e.args}: {status}",
+                    **result,
+                )
+
+    with tasks_path.open(encoding="utf-8") as tasks_file:
+        result["tasks"] = tasks_file.read().splitlines()
 
     # return result
     module.exit_json(**result)

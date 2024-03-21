@@ -2,10 +2,20 @@
 
 # Copyright (C) 2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
+"""
+rdt_new_cos ansible module See documentation below for usage details
+"""
 
 from __future__ import absolute_import, division, print_function
 
-__metaclass__ = type
+import datetime
+import re
+import uuid
+from pathlib import Path
+
+from ansible.module_utils.basic import AnsibleModule
+
+__metaclass__ = type  # pylint: disable=invalid-name
 
 RDT_PATH = "/sys/fs/resctrl/"
 
@@ -13,7 +23,7 @@ DOCUMENTATION = r"""
 ---
 module: rdt_new_cos
 
-short_description: Creat new Class of Service (COS)
+short_description: Create new Class of Service (COS)
 description:
   - requires RDT CAT support and a mounted resctrl pseudo-filesystem at /sys/fs/resctrl
   - requires root privileges
@@ -43,17 +53,14 @@ cos_name:
     sample: '20230504122939966009'
 """
 
-from ansible.module_utils.basic import AnsibleModule
-from pathlib import Path
-import datetime, re, uuid
-
 
 def run_module():
+    """This function create a COS with a unique name from cos_name"""
     # module input
-    module_args = dict()
+    module_args = {}
 
     # module output
-    result = dict(changed=False, cos_name="")
+    result = {"changed": False, "cos_name": ""}
 
     # instantiate AnsibleModule object
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=False)
@@ -73,12 +80,14 @@ def run_module():
     except Exception as e:
         # check rdt for errors
         rdt_cmd_status_path = rdt_path.joinpath("info", "last_cmd_status")
-        rdt_cmd_status = rdt_cmd_status_path.open().read()
-        if re.search(r"ok", rdt_cmd_status) is None:
-            module.fail_json(
-                f"rdt error when creating new COS at {cos_path}: {e.args}: {rdt_cmd_status}",
-                **result,
-            )
+
+        with rdt_cmd_status_path.open(encoding="utf-8") as rdt_cmd_status:
+            rdt_cmd_status.read()
+            if re.search(r"ok", rdt_cmd_status) is None:
+                module.fail_json(
+                    f"rdt error when creating new COS at {cos_path}: {e.args}: {rdt_cmd_status}",
+                    **result,
+                )
 
     # return result
     result["changed"] = True
@@ -86,6 +95,7 @@ def run_module():
 
 
 def main():
+    """Module main function"""
     run_module()
 
 
