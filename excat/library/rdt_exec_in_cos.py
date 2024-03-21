@@ -95,7 +95,7 @@ log_file:
 """
 
 
-def run_module():
+def runModule():
     """This function will first check if the COS exists, start the executable and write
     the executable PID to the tasks file of COS
     """
